@@ -1,0 +1,23 @@
+[Unit]
+Description=Learn Observe (ops dashboard)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/dsnoble/projects/learn-observe/LearnObserve
+Environment=ASPNETCORE_URLS=http://[::]:3002
+Environment=DOTNET_ENVIRONMENT=Production
+EnvironmentFile=-/home/dsnoble/projects/learn/.env
+
+ExecStartPre=/home/dsnoble/.local/share/mise/installs/dotnet/9.0.306/dotnet build -c Release /home/dsnoble/projects/learn-observe/LearnObserve/LearnObserve.csproj
+ExecStart=/home/dsnoble/.local/share/mise/installs/dotnet/9.0.306/dotnet /home/dsnoble/projects/learn-observe/LearnObserve/bin/Release/net9.0/LearnObserve.dll
+
+Restart=always
+RestartSec=2
+NoNewPrivileges=true
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
