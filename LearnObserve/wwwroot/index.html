@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Learn Observe</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; background: #0b1020; color: #e5e7eb; }
+    header { padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center; }
+    h1 { font-size: 16px; margin: 0; letter-spacing: 0.02em; }
+    main { padding: 16px 20px; display: grid; gap: 14px; max-width: 1100px; margin: 0 auto; }
+    .card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 14px; }
+    .row { display:flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    .pill { padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.14); font-size: 12px; color:#cbd5e1; }
+    .ok { border-color: rgba(34,197,94,0.5); color: rgba(34,197,94,1); }
+    .bad { border-color: rgba(239,68,68,0.6); color: rgba(239,68,68,1); }
+    pre { white-space: pre-wrap; word-break: break-word; margin: 0; font-size: 12px; line-height: 1.45; color: #cbd5e1; }
+    select, button { background: rgba(255,255,255,0.06); color:#e5e7eb; border:1px solid rgba(255,255,255,0.14); border-radius: 10px; padding: 8px 10px; }
+    button { cursor:pointer; }
+    a { color:#93c5fd; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Learn Observe</h1>
+  <div class="row">
+    <span id="me" class="pill">Loading…</span>
+    <button id="refresh">Refresh</button>
+    <a href="/api/auth/logout" class="pill">Logout</a>
+  </div>
+</header>
+<main>
+  <div class="card">
+    <div class="row">
+      <div class="pill" style="font-weight:600">Units</div>
+      <select id="unit">
+        <option value="learn.service">learn.service</option>
+        <option value="cloudflared.service">cloudflared.service</option>
+      </select>
+      <select id="priority">
+        <option value="warning">warning+</option>
+        <option value="err">error+</option>
+      </select>
+      <select id="lines">
+        <option>100</option>
+        <option selected>200</option>
+        <option>500</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row" id="status"></div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <div class="pill" style="font-weight:600">Recent logs</div>
+      <div class="pill">Tip: for Cloudflare 502, paste the CF-Ray id and we can grep for it</div>
+    </div>
+    <pre id="logs">Loading…</pre>
+  </div>
+</main>
+
+<script>
+async function api(path) {
+  const res = await fetch(path, { credentials: 'include' });
+  if (res.status === 401) {
+    location.href = '/api/auth/login?returnUrl=' + encodeURIComponent(location.href);
+    return null;
+  }
+  if (!res.ok) throw new Error('Request failed: ' + res.status);
+  return await res.json();
+}
+
+function pill(text, cls) {
+  const s = document.createElement('span');
+  s.className = 'pill ' + (cls || '');
+  s.textContent = text;
+  return s;
+}
+
+async function refresh() {
+  const unit = document.getElementById('unit').value;
+  const prio = document.getElementById('priority').value;
+  const lines = document.getElementById('lines').value;
+
+  const me = await api('/api/auth/me');
+  if (me) {
+    document.getElementById('me').textContent = me.email || 'Authed';
+  }
+
+  const status = await api('/api/status?unit=' + encodeURIComponent(unit));
+  const statusEl = document.getElementById('status');
+  statusEl.innerHTML = '';
+  if (status) {
+    const ok = status.activeState === 'active' && status.subState === 'running';
+    statusEl.appendChild(pill(unit, ok ? 'ok' : 'bad'));
+    statusEl.appendChild(pill('active=' + status.activeState));
+    statusEl.appendChild(pill('sub=' + status.subState));
+    if (status.nRestarts != null) statusEl.appendChild(pill('restarts=' + status.nRestarts));
+    if (status.result) statusEl.appendChild(pill('result=' + status.result));
+    if (status.execMainStatus) statusEl.appendChild(pill('exit=' + status.execMainStatus));
+    if (status.activeEnterTimestamp) statusEl.appendChild(pill('since=' + status.activeEnterTimestamp));
+  }
+
+  const logs = await api(`/api/logs?unit=${encodeURIComponent(unit)}&priority=${encodeURIComponent(prio)}&lines=${encodeURIComponent(lines)}`);
+  const logsEl = document.getElementById('logs');
+  logsEl.textContent = (logs?.lines || []).map(l => l.message).join('\n') || '(no logs)';
+}
+
+document.getElementById('refresh').addEventListener('click', () => refresh().catch(err => alert(err.message)));
+for (const id of ['unit','priority','lines']) {
+  document.getElementById(id).addEventListener('change', () => refresh().catch(err => alert(err.message)));
+}
+
+refresh().catch(err => alert(err.message));
+</script>
+</body>
+</html>
